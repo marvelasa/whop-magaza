@@ -14,7 +14,15 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<script async defer src="https://js.whop.com/static/checkout/loader.js"></script>
+<!--
+  The Whop checkout loader script is added dynamically further down, AFTER
+  the checkout div's data-whop-checkout-session attribute is already set —
+  not here in <head>. The loader only scans the page once, when it first
+  runs; loading it up front and filling in the div's attributes later (once
+  the session id comes back from our own server) left it stuck forever on
+  "Ödeme hazırlanıyor...", because by the time the div was ready the loader
+  had already finished looking.
+-->
 <style>
   body { font-family: "Poppins", ui-sans-serif, system-ui, sans-serif; }
   #whop-embedded-checkout { margin-top: 8px; border-radius: 6px; overflow: hidden; }
@@ -87,10 +95,18 @@
           <span id="summary-count" class="shrink-0 rounded-[4px] bg-ink px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white"></span>
         </div>
         <ul id="summary-items" class="divide-y divide-ink/10 px-5"></ul>
+        <div id="summary-addon-items" class="border-t border-ink/10 px-5 py-4" hidden>
+          <p class="mb-2 text-xs font-extrabold uppercase tracking-wide text-ink/50">Ek Ürünler</p>
+          <ul id="summary-addon-list" class="space-y-2"></ul>
+        </div>
         <div class="space-y-2 border-t-2 border-ink/10 px-5 py-4">
           <div class="flex items-center justify-between text-sm text-ink/70">
             <span>Ara Toplam</span>
             <span id="summary-subtotal" class="font-semibold text-ink"></span>
+          </div>
+          <div id="summary-addons-row" hidden class="flex items-center justify-between text-sm text-ink/70">
+            <span>Ek Ürünler</span>
+            <span id="summary-addons" class="font-semibold text-ink"></span>
           </div>
           <div class="flex items-center justify-between text-sm text-ink/70">
             <span>Kargo</span>
@@ -157,7 +173,9 @@
 
   const money = window.MarvelasaCart.money;
   const items = window.MarvelasaCart.getItems();
+  const addonIds = window.MarvelasaCart.getAddonIds();
   const BUNDLES = window.MarvelasaCart.BUNDLES;
+  const ADDONS = window.MarvelasaCart.ADDONS;
 
   if (items.length === 0) {
     document.getElementById("empty-state").hidden = false;
@@ -167,8 +185,14 @@
     const totalQty = items.reduce((s, i) => s + i.qty, 0);
     document.getElementById("summary-count").textContent = totalQty + (totalQty === 1 ? " ürün" : " ürün");
     const subtotal = window.MarvelasaCart.subtotal();
+    const addonsSubtotal = window.MarvelasaCart.addonsSubtotal();
+    const total = subtotal + addonsSubtotal;
     document.getElementById("summary-subtotal").textContent = money(subtotal);
-    document.getElementById("summary-total").textContent = money(subtotal);
+    document.getElementById("summary-total").textContent = money(total);
+    if (addonsSubtotal > 0) {
+      document.getElementById("summary-addons-row").hidden = false;
+      document.getElementById("summary-addons").textContent = money(addonsSubtotal);
+    }
 
     const summaryEl = document.getElementById("summary-items");
     items.forEach((line) => {
@@ -188,14 +212,36 @@
       summaryEl.appendChild(li);
     });
 
+    if (addonIds.length > 0) {
+      document.getElementById("summary-addon-items").hidden = false;
+      const addonListEl = document.getElementById("summary-addon-list");
+      addonIds.forEach((id) => {
+        const addon = ADDONS[id];
+        if (!addon) return;
+        const li = document.createElement("li");
+        li.className = "flex items-center justify-between gap-3";
+        li.innerHTML =
+          '<span class="text-sm font-semibold text-ink">' + addon.label + '</span>' +
+          '<span class="shrink-0 text-sm font-extrabold text-ink">' + money(addon.price) + '</span>';
+        addonListEl.appendChild(li);
+      });
+    }
+
     // ---- checkout session + embed ----
     // The embed (mounted via data-whop-checkout-session below) renders its
     // own complete form — email, card/shipping fields, and its own pay
     // button — inside the iframe. There is nothing else to wire up here.
+    //
+    // IMPORTANT: the loader script only scans the page ONCE, the moment it
+    // runs. The div must already carry its final data-whop-checkout-session
+    // attribute *before* that script is added to the page — building the
+    // div first and loading the script after (not the other way around) is
+    // what makes this actually mount instead of sitting on "Ödeme
+    // hazırlanıyor..." forever.
     fetch("/api/checkout-session", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ lines: items }),
+      body: JSON.stringify({ lines: items, addonIds: addonIds }),
     })
       .then(async (res) => {
         const contentType = res.headers.get("content-type") || "";
@@ -213,6 +259,13 @@
         embed.setAttribute("data-whop-checkout-theme", "light");
         embed.setAttribute("data-whop-checkout-collect-shipping", "true");
         container.appendChild(embed);
+
+        // Only now — with the fully-configured div already sitting in the
+        // page — load the script that scans for it.
+        const loader = document.createElement("script");
+        loader.src = "https://js.whop.com/static/checkout/loader.js";
+        loader.async = true;
+        document.body.appendChild(loader);
       })
       .catch((err) => {
         const errEl = document.getElementById("error-message");
