@@ -1,17 +1,13 @@
 /**
- * MARVELASA — standalone Express server for self-hosting the storefront on
+ * MARVELASA â€” standalone Express server for self-hosting the storefront on
  * your own domain, while every payment still runs through real Whop
  * Payments infrastructure.
  *
- * This mirrors the pricing + checkout-session logic of the Whop-hosted site
- * (src/lib/plans.ts + src/lib/checkout-session.ts) exactly — same bundle
- * prices, same addon prices, same Whop API call — just running on a plain
- * Node.js server instead of a Whop-hosted Cloudflare Worker.
- *
- * The client NEVER sends a price. It sends cart lines (bundle id, quantity,
- * model, addon ids); this server recomputes the total from the tables below
- * and only then asks Whop to mint a checkout session for that amount. This
- * is the same anti-tamper shape the original checkout-session.ts uses.
+ * Mirrors the Whop-hosted site's own logic:
+ *  - pricing + checkout-session creation (src/lib/plans.ts + checkout-session.ts)
+ *  - buyer-facing order lookup (src/lib/shipments.ts trackOrder)
+ * just running on a plain Node.js server instead of a Whop-hosted Cloudflare
+ * Worker, so it can live on any domain/host you own.
  */
 require('dotenv').config()
 const express = require('express')
@@ -25,6 +21,18 @@ const COMPANY_ID = 'biz_7piuls4sNczwad'
 const PRODUCT_ID = 'prod_pnIOT5MSdvPMC'
 const API_VERSION_DATE = '2026-07-29'
 const MAX_QTY = 10
+const PAYMENT_ID = /^pay_[A-Za-z0-9]{4,60}$/
+
+const PAYMENTS_URL = 'https://api.whop.com/api/v1/payments'
+const MEMBERSHIPS_URL = 'https://api.whop.com/api/v1/memberships'
+const CHECKOUT_CONFIGS_URL = 'https://api.whop.com/api/v1/checkout_configurations'
+
+const MANUAL_STATUS_LABELS = {
+  hazirlaniyor: 'HazÄ±rlanÄ±yor',
+  kargoya_verildi: 'Kargoya Verildi',
+  dagitimda: 'DaÄŸÄ±tÄ±mda',
+  teslim_edildi: 'Teslim Edildi',
+}
 
 /** Same three real bundles/prices as the Whop-hosted site. */
 const BUNDLES = {
@@ -33,16 +41,17 @@ const BUNDLES = {
   three: { price: 7396, compareAt: 13400, qty: 4 },
 }
 
-/** Same three real addons/prices as the Whop-hosted site. */
-const ADDONS = {
-  'kagit-x2': { label: "Sihirli Kağıt — 2'li Yedek Paket", price: 149 },
-  'kagit-x4': { label: "Sihirli Kağıt — 4'lü Yedek Paket", price: 249 },
-  'garanti-2yil': { label: '+2 Yıl Garanti', price: 299 },
-}
-
 const MODELS = ['Harry Potter', 'Lord Voldemort', 'Dumbledore', 'Hermione Granger', 'Severus Snape']
 
-function computeTotal(lines, addonIds) {
+function whopHeaders(apiKey) {
+  return {
+    Authorization: `Bearer ${apiKey}`,
+    Accept: 'application/json',
+    'Api-Version-Date': API_VERSION_DATE,
+  }
+}
+
+function computeTotal(lines) {
   let total = 0
   for (const line of lines) {
     const bundle = BUNDLES[line.bundleId]
@@ -52,21 +61,19 @@ function computeTotal(lines, addonIds) {
     }
     total += bundle.price * line.qty
   }
-  for (const id of addonIds) {
-    const addon = ADDONS[id]
-    if (addon) total += addon.price
-  }
   return Math.round(total * 100) / 100
 }
+
+// ---------- checkout ----------
 
 app.post('/api/checkout-session', async (req, res) => {
   try {
     const apiKey = process.env.WHOP_CHECKOUT_API_KEY
     if (!apiKey) {
-      return res.status(500).json({ error: 'Sunucu WHOP_CHECKOUT_API_KEY olmadan çalıştırılıyor — .env dosyasını doldur.' })
+      return res.status(500).json({ error: 'Sunucu WHOP_CHECKOUT_API_KEY olmadan Ã§alÄ±ÅŸtÄ±rÄ±lÄ±yor â€” .env dosyasÄ±nÄ± doldur.' })
     }
 
-    const { lines, addonIds } = req.body || {}
+    const { lines } = req.body || {}
     if (!Array.isArray(lines) || lines.length === 0) {
       return res.status(400).json({ error: 'lines must be a non-empty array' })
     }
@@ -77,27 +84,22 @@ app.post('/api/checkout-session', async (req, res) => {
       const model = MODELS.includes(raw?.model) ? raw.model : MODELS[0]
       return { bundleId, qty: raw.qty, model }
     })
-    const safeAddonIds = (Array.isArray(addonIds) ? addonIds : []).filter((id) => ADDONS[id])
 
-    const amount = computeTotal(safeLines, safeAddonIds)
+    const amount = computeTotal(safeLines)
     if (amount <= 0) {
       return res.status(400).json({ error: 'Cart total must be greater than zero' })
     }
 
-    const response = await fetch('https://api.whop.com/api/v1/checkout_configurations', {
+    const response = await fetch(CHECKOUT_CONFIGS_URL, {
       method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-        'Api-Version-Date': API_VERSION_DATE,
-      },
+      headers: { ...whopHeaders(apiKey), 'Content-Type': 'application/json' },
       body: JSON.stringify({
         account_id: COMPANY_ID,
         mode: 'payment',
         plan: {
           account_id: COMPANY_ID,
           product_id: PRODUCT_ID,
-          title: 'Sihirli Asa siparişi',
+          title: 'Sihirli Asa sipariÅŸi',
           plan_type: 'one_time',
           currency: 'try',
           initial_price: amount,
@@ -120,6 +122,86 @@ app.post('/api/checkout-session', async (req, res) => {
     res.status(400).json({ error: err instanceof Error ? err.message : 'Unknown error' })
   }
 })
+
+// ---------- buyer-facing order lookup (SipariÅŸinizi Takip Edin) ----------
+
+function toShipmentInfo(raw) {
+  if (!raw || typeof raw.status !== 'string' || typeof raw.tracking_number !== 'string' || typeof raw.tracking_url !== 'string') {
+    return null
+  }
+  return {
+    status: raw.status,
+    trackingNumber: raw.tracking_number,
+    carrier: typeof raw.carrier === 'string' ? raw.carrier : null,
+    trackingUrl: raw.tracking_url,
+  }
+}
+
+async function fetchManualStatus(apiKey, membershipId) {
+  try {
+    const res = await fetch(`${MEMBERSHIPS_URL}/${membershipId}`, { headers: whopHeaders(apiKey) })
+    if (!res.ok) return { status: null, updatedAt: null }
+    const body = await res.json()
+    const metadata = body.metadata || {}
+    const status = Object.prototype.hasOwnProperty.call(MANUAL_STATUS_LABELS, metadata.shipping_status) ? metadata.shipping_status : null
+    const updatedAt = typeof metadata.shipping_status_updated_at === 'string' ? metadata.shipping_status_updated_at : null
+    return { status, updatedAt }
+  } catch {
+    return { status: null, updatedAt: null }
+  }
+}
+
+app.post('/api/track-order', async (req, res) => {
+  const NOT_FOUND = { found: false }
+  try {
+    const apiKey = process.env.WHOP_CHECKOUT_API_KEY
+    if (!apiKey) return res.json(NOT_FOUND)
+
+    const orderId = String(req.body?.orderId || '').trim().slice(0, 100)
+    const email = String(req.body?.email || '').trim().slice(0, 200)
+    if (!PAYMENT_ID.test(orderId) || email === '') return res.json(NOT_FOUND)
+
+    const response = await fetch(`${PAYMENTS_URL}/${orderId}`, { headers: whopHeaders(apiKey) })
+    if (!response.ok) return res.json(NOT_FOUND)
+    const payment = await response.json()
+
+    // Ownership first â€” pay_... ids are global to Whop, not scoped to this shop.
+    if (payment.company?.id !== COMPANY_ID) return res.json(NOT_FOUND)
+
+    // The one thing that has to match before anything is handed back: proof
+    // the caller is the buyer, not just someone who saw a stray order id.
+    const onFile = typeof payment.user?.email === 'string' ? payment.user.email.trim().toLowerCase() : ''
+    if (onFile === '' || onFile !== email.toLowerCase()) return res.json(NOT_FOUND)
+
+    const membershipId = typeof payment.membership?.id === 'string' ? payment.membership.id : null
+    const manual = membershipId ? await fetchManualStatus(apiKey, membershipId) : { status: null, updatedAt: null }
+
+    res.json({
+      found: true,
+      status: typeof payment.status === 'string' ? payment.status : 'unknown',
+      createdAt: typeof payment.created_at === 'string' ? payment.created_at : '',
+      total: typeof payment.total === 'number' ? payment.total : null,
+      currency: typeof payment.currency === 'string' ? payment.currency : 'try',
+      shipment: toShipmentInfo(payment.shipment),
+      manualStatus: manual.status,
+      manualStatusLabel: manual.status ? MANUAL_STATUS_LABELS[manual.status] : null,
+      manualStatusUpdatedAt: manual.updatedAt,
+    })
+  } catch {
+    res.json(NOT_FOUND)
+  }
+})
+
+// ---------- clean-URL page routes, matching the real site's own paths ----------
+
+const page = (name) => (req, res) => res.sendFile(path.join(__dirname, 'webroot', name))
+app.get('/', page('index.html'))
+app.get('/product', page('product.html'))
+app.get('/siparis-takip', page('siparis-takip.html'))
+app.get('/iade-politikasi', page('iade-politikasi.html'))
+app.get('/gizlilik-politikasi', page('gizlilik-politikasi.html'))
+app.get('/kargo-politikasi', page('kargo-politikasi.html'))
+app.get('/kullanim-kosullari', page('kullanim-kosullari.html'))
 
 const port = process.env.PORT || 3000
 app.listen(port, () => {
