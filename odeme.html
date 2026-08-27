@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="tr">
 <head>
@@ -27,7 +28,7 @@
   body { font-family: "Poppins", ui-sans-serif, system-ui, sans-serif; }
   #whop-embedded-checkout { margin-top: 8px; border-radius: 6px; overflow: hidden; }
 </style>
-</head>
+<script data-whop-pixel="platform">(function(){var a={"app_id":"app_hvPlkGxjan8CNl","app_build_id":"apbu_yIZo9tgRY22xa"};if(!window.whop){!function(w,d,s,u,n,a,b){if(w[n])return;a=w[n]={q:[],t:+new Date,s:[],o:u,track:function(){a.q.push([+new Date].concat([].slice.call(arguments)))},setScope:function(){a.s=[].slice.call(arguments).filter(function(x){return typeof x==="string"});a.q.push([+new Date,"setScope"].concat(a.s))},scope:function(){var c=[].slice.call(arguments);return{track:function(){a.q.push([+new Date].concat([].slice.call(arguments)).concat([{__scope:c}]))}}}};b=d.createElement(s);b.async=1;b.src=u+"/s.js";d.getElementsByTagName(s)[0].parentNode.insertBefore(b,d.getElementsByTagName(s)[0])}(window,document,"script","https://t.whop.tw","whop");whop.c=a;whop.setScope("biz_7piuls4sNczwad");whop.track("page");}else if(window.whop.config){window.whop.config(a);}else{window.whop.c=Object.assign(window.whop.c||{},a);}})();</script></head>
 <body class="bg-white">
 
   <div class="overflow-hidden bg-forest py-2 text-white">
@@ -169,6 +170,14 @@
   </footer>
 
 <script>
+// Everything here waits for DOMContentLoaded on purpose: cart.js is loaded
+// with `defer`, which — unlike this inline script — only runs once the whole
+// document has finished parsing. An inline script always runs immediately,
+// so reading window.MarvelasaCart at the top level (outside this listener)
+// ran before cart.js had, leaving it undefined and stopping this whole
+// script silently — which is what left the page stuck on "Ödeme
+// hazırlanıyor...".
+document.addEventListener("DOMContentLoaded", function () {
   document.getElementById("ticker1").innerHTML += document.getElementById("ticker1").innerHTML;
 
   const money = window.MarvelasaCart.money;
@@ -273,6 +282,8 @@
         errEl.hidden = false;
       });
   }
+});
 </script>
+<script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v4513226cdae34746b4dedf0b4dfa099e1781791509496" integrity="sha512-ZE9pZaUXND66v380QUtch/5sE9tPFh2zg45pR2PB0CVkCtOREv2AJKkSidISWkysEuQ0EH8faUU5du78bx87UQ==" data-cf-beacon='{"version":"2024.11.0","token":"f206404128054b8ea0db5ec12f73f256","r":1}' crossorigin="anonymous"></script>
 </body>
 </html>
