@@ -1,9 +1,9 @@
 /**
- * MARVELASA kit — shared cart drawer, loaded on every page.
+ * MARVELASA kit â€” shared cart drawer, loaded on every page.
  *
  * Mirrors the real site's own cart (src/lib/cart.tsx + components/CartDrawer.tsx):
  * "Sepete Ekle" adds a line and opens this slide-in drawer, which totals the
- * order and hands off to /odeme (the checkout page) — it never jumps straight
+ * order and hands off to /odeme (the checkout page) â€” it never jumps straight
  * to a payment form itself. Cart state persists in localStorage so it
  * survives navigating between pages, same as the real site.
  */
@@ -11,7 +11,7 @@
   var STORAGE_KEY = 'marvelasa-kit-cart'
   var MAX_QTY = 10
 
-  // Same three bundles/prices as server.js's BUNDLES — keep both in sync.
+  // Same three bundles/prices as server.js's BUNDLES â€” keep both in sync.
   var BUNDLES = {
     one: { id: 'one', label: '1 Adet', price: 1849, compareAt: 3350, units: 1 },
     two: { id: 'two', label: '2 Adet', price: 3698, compareAt: 6700, units: 2 },
@@ -28,30 +28,50 @@
   }
 
   var GIFT_UNLOCKS = [
-    { threshold: 1, label: 'Ücretsiz Sihirli Kağıt', body: '1 adet ekstra büyü kağıdı, sipariş kutusuna eklenir.' },
-    { threshold: 1, label: 'Ücretsiz Kargo', body: 'Her siparişte otomatik olarak dahil.' },
-    { threshold: 2, label: 'Ücretsiz Büyü Kılavuzu', body: 'Gösteri ipuçları içeren dijital rehber, e-postana gönderilir.' },
-    { threshold: 3, label: 'Gizemli Hediye', body: 'Kutuna sürpriz bir hediye eklenir.' },
+    {
+      threshold: 1,
+      label: 'Ãœcretsiz Sihirli KaÄŸÄ±t',
+      body: '1 adet ekstra bÃ¼yÃ¼ kaÄŸÄ±dÄ±, sipariÅŸ kutusuna eklenir.',
+      icon: 'https://assets-2-prod.whop.com/public/uploads/2026-08-27/f4142d19-56a4-456e-9207-84b1708ce2d9/image.webp',
+    },
+    {
+      threshold: 1,
+      label: 'Ãœcretsiz Kargo',
+      body: 'Her sipariÅŸte otomatik olarak dahil.',
+      icon: 'https://assets-2-prod.whop.com/public/uploads/2026-08-27/0f87ec02-4920-4f23-ba55-3924b28fe1d2/image.webp',
+    },
+    {
+      threshold: 2,
+      label: 'Ãœcretsiz BÃ¼yÃ¼ KÄ±lavuzu',
+      body: 'GÃ¶steri ipuÃ§larÄ± iÃ§eren dijital rehber, e-postana gÃ¶nderilir.',
+      icon: 'https://assets-2-prod.whop.com/public/uploads/2026-08-27/5cccf68b-09da-43a3-9df7-0d9a936b20a2/image.webp',
+    },
+    {
+      threshold: 3,
+      label: 'Gizemli Hediye',
+      body: 'Kutuna sÃ¼rpriz bir hediye eklenir.',
+      icon: 'https://assets-2-prod.whop.com/public/uploads/2026-08-27/1bf95977-ecfe-4e9f-9400-fb1d63e3a838/image.webp',
+    },
   ]
 
-  // Same three paid add-ons as server.js's ADDONS — keep both in sync.
+  // Same three paid add-ons as server.js's ADDONS â€” keep both in sync.
   var ADDONS = {
     'kagit-x2': {
       id: 'kagit-x2',
-      label: "Sihirli Kağıt — 2'li Yedek Paket",
-      description: '2 adet ek büyü kağıdı, asanı daha uzun süre kullan.',
+      label: "Sihirli KaÄŸÄ±t â€” 2'li Yedek Paket",
+      description: '2 adet ek bÃ¼yÃ¼ kaÄŸÄ±dÄ±, asanÄ± daha uzun sÃ¼re kullan.',
       price: 149,
     },
     'kagit-x4': {
       id: 'kagit-x4',
-      label: "Sihirli Kağıt — 4'lü Yedek Paket",
-      description: '4 adet ek büyü kağıdı, en avantajlı yedek paket.',
+      label: "Sihirli KaÄŸÄ±t â€” 4'lÃ¼ Yedek Paket",
+      description: '4 adet ek bÃ¼yÃ¼ kaÄŸÄ±dÄ±, en avantajlÄ± yedek paket.',
       price: 249,
     },
     'garanti-2yil': {
       id: 'garanti-2yil',
-      label: '+2 Yıl Garanti',
-      description: 'Standart garantine ek 2 yıl kapsama satın al.',
+      label: '+2 YÄ±l Garanti',
+      description: 'Standart garantine ek 2 yÄ±l kapsama satÄ±n al.',
       price: 299,
     },
   }
@@ -241,7 +261,7 @@
           '</span>' +
           '<button type="button" class="cart-remove text-xs font-semibold text-ink/50 underline-offset-2 transition hover:text-ink hover:underline" data-bundle="' +
           line.bundleId +
-          '">Kaldır</button>' +
+          '">KaldÄ±r</button>' +
           '</div>' +
           '</li>'
         )
@@ -259,7 +279,11 @@
         unlocked
           .map(function (g) {
             return (
-              '<li class="flex items-center gap-3 rounded-md bg-blush px-3 py-2.5"><div class="min-w-0 flex-1"><p class="text-sm font-bold leading-snug text-forest">' +
+              '<li class="flex items-center gap-3 rounded-md bg-blush px-3 py-2.5">' +
+              '<span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-white"><img src="' +
+              g.icon +
+              '" alt="" aria-hidden="true" class="h-8 w-8 object-contain"/></span>' +
+              '<div class="min-w-0 flex-1"><p class="text-sm font-bold leading-snug text-forest">' +
               g.label +
               '</p><p class="text-xs leading-snug text-ink/60">' +
               g.body +
@@ -283,7 +307,7 @@
 
     var addonsHtml =
       items.length > 0
-        ? '<div class="mt-5"><p class="text-xs font-extrabold uppercase tracking-wide text-ink/50">Siparişine ekle</p><ul class="mt-2 space-y-2">' +
+        ? '<div class="mt-5"><p class="text-xs font-extrabold uppercase tracking-wide text-ink/50">SipariÅŸine ekle</p><ul class="mt-2 space-y-2">' +
           ADDON_ORDER.map(function (id) {
             var a = ADDONS[id]
             var checked = state.addonIds.indexOf(id) >= 0
@@ -310,7 +334,7 @@
 
     var bodyHtml =
       items.length === 0
-        ? '<div class="flex h-full flex-col items-center justify-center text-center"><p class="text-sm text-ink/60">Sepetin boş.</p><a href="/product" class="mt-4 rounded-md bg-forest px-5 py-2.5 text-base font-extrabold text-white transition hover:bg-forest-dark">Alışverişe Devam Et</a></div>'
+        ? '<div class="flex h-full flex-col items-center justify-center text-center"><p class="text-sm text-ink/60">Sepetin boÅŸ.</p><a href="/product" class="mt-4 rounded-md bg-forest px-5 py-2.5 text-base font-extrabold text-white transition hover:bg-forest-dark">AlÄ±ÅŸveriÅŸe Devam Et</a></div>'
         : '<ul class="space-y-5">' + itemsHtml + '</ul>' + giftsHtml + lockedHtml + addonsHtml
 
     var addons = addonsSubtotal()
@@ -322,14 +346,14 @@
           money(sub) +
           '</span></div>' +
           (addons > 0
-            ? '<div class="mt-1 flex items-center justify-between text-sm text-ink/70"><span>Ek Ürünler</span><span class="font-semibold text-ink">' +
+            ? '<div class="mt-1 flex items-center justify-between text-sm text-ink/70"><span>Ek ÃœrÃ¼nler</span><span class="font-semibold text-ink">' +
               money(addons) +
               '</span></div>'
             : '') +
           '<div class="mt-2 flex items-center justify-between text-base font-bold text-forest"><span>Toplam</span><span>' +
           money(total) +
           '</span></div>' +
-          '<a href="/odeme" class="mt-4 flex w-full items-center justify-center rounded-md bg-forest px-8 py-4 text-lg font-extrabold uppercase tracking-wider text-white transition hover:bg-forest-dark">Ödemeye Geç</a>' +
+          '<a href="/odeme" class="mt-4 flex w-full items-center justify-center rounded-md bg-forest px-8 py-4 text-lg font-extrabold uppercase tracking-wider text-white transition hover:bg-forest-dark">Ã–demeye GeÃ§</a>' +
           '</div>'
         : ''
 
