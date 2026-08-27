@@ -6,24 +6,18 @@
 <title>Büyü Yapabilen Sihirli Asa – MARVELASA</title>
 <!--
   This markup and every class name below is copied verbatim from the real
-  MARVELASA site's own rendered output (view-source of https://marvelasa.whop.app/product),
-  and it loads that same site's own compiled stylesheet directly:
-  https://marvelasa.whop.app/assets/styles-CkenaHyH.css — so the visual result
-  is not an approximation, it is the production CSS. That filename is
-  content-hashed and WILL change the next time the real site is rebuilt/deployed;
-  if this page's styling ever looks broken, re-check that URL still exists by
-  viewing the real site's page source and pulling the new hashed filename.
+  MARVELASA site's own rendered output (view-source of https://marvelasa.whop.app/product).
+  styles.css and cart.js are served by this same server — see their own
+  files for what each does.
 -->
-<link rel="stylesheet" href="https://marvelasa.whop.app/assets/styles-CkenaHyH.css">
+<link rel="stylesheet" href="/styles.css">
+<script src="/cart.js" defer></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<script async defer src="https://js.whop.com/static/checkout/loader.js"></script>
 <style>
   /* Matches --font-display from the real site's theme tokens. */
   body { font-family: "Poppins", ui-sans-serif, system-ui, sans-serif; }
-  #whop-embedded-checkout { margin-top: 18px; border-radius: 14px; overflow: hidden; }
-  .status-msg { font-size: 12.5px; color: #c62828; margin-top: 8px; }
 </style>
 </head>
 <body class="bg-white">
@@ -54,8 +48,9 @@
         <span aria-hidden="true" class="inline-flex items-center text-2xl font-extrabold uppercase tracking-wide text-forest text-lg sm:text-xl">MARVELASA</span>
       </a>
       <div class="flex items-center justify-self-end">
-        <button type="button" aria-label="Sepeti aç" class="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-forest transition hover:bg-blush">
+        <button type="button" data-cart-toggle aria-label="Sepeti aç" class="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-forest transition hover:bg-blush">
           <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="h-5 w-5"><path d="M6 7h13l-1.5 9.5a2 2 0 0 1-2 1.5H8.7a2 2 0 0 1-2-1.7L5 4H2.5" stroke-linecap="round" stroke-linejoin="round"></path><circle cx="9" cy="20" r="1.4"></circle><circle cx="17" cy="20" r="1.4"></circle></svg>
+          <span data-cart-count class="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-forest text-[10px] font-bold text-white" style="display:none">0</span>
         </button>
       </div>
     </div>
@@ -166,8 +161,6 @@
         </div>
 
         <button type="button" id="checkout-btn" class="mt-4 flex w-full items-center justify-center rounded-md bg-forest px-8 py-5 text-lg font-extrabold uppercase tracking-wider text-white transition hover:bg-forest-dark">Sepete Ekle</button>
-        <div class="status-msg" id="status"></div>
-        <div id="whop-embedded-checkout"></div>
 
         <div class="mt-3 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-xs font-semibold text-ink/75">
           <span class="flex items-center gap-1.5"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" class="h-3.5 w-3.5 shrink-0"><path d="M3 7h11v9H3V7Zm11 3h4l3 3v3h-7v-6ZM7.5 19a1.6 1.6 0 1 0 0-3.2 1.6 1.6 0 0 0 0 3.2Zm10 0a1.6 1.6 0 1 0 0-3.2 1.6 1.6 0 0 0 0 3.2Z"></path></svg>Her Siparişte Ücretsiz Kargo</span>
@@ -505,43 +498,14 @@
     });
   })();
 
-  // ---- checkout ----
-  document.getElementById("checkout-btn").addEventListener("click", async () => {
-    const btn = document.getElementById("checkout-btn");
-    const statusEl = document.getElementById("status");
-    btn.disabled = true;
-    const originalText = btn.textContent;
-    btn.textContent = "Hazırlanıyor…";
-    statusEl.textContent = "";
-    try {
-      const res = await fetch("/api/checkout-session", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          lines: [{ bundleId: state.bundle, qty: state.multiplier, model: document.getElementById("model-label").textContent }],
-          addonIds: [],
-        }),
-      });
-      const contentType = res.headers.get("content-type") || "";
-      if (!contentType.includes("application/json")) {
-        throw new Error("Bu sayfa /api/checkout-session uç noktasına ulaşamıyor — bu dosyayı server.js ile birlikte kendi Node.js hosting'inde çalıştırman gerekiyor (bkz. README.md). Statik önizlemede ödeme adımı çalışmaz.");
-      }
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Bilinmeyen hata");
-
-      const container = document.getElementById("whop-embedded-checkout");
-      const fresh = document.createElement("div");
-      fresh.id = "whop-embedded-checkout";
-      fresh.setAttribute("data-whop-checkout-session", json.sessionId);
-      fresh.setAttribute("data-whop-checkout-theme", "light");
-      fresh.setAttribute("data-whop-checkout-collect-shipping", "true");
-      container.replaceWith(fresh);
-    } catch (err) {
-      statusEl.textContent = "Hata: " + err.message;
-    } finally {
-      btn.disabled = false;
-      btn.textContent = originalText;
-    }
+  // ---- add to cart ----
+  // Matches the real site: "Sepete Ekle" adds the line and opens the cart
+  // drawer (see cart.js) — it does not jump straight to a payment form.
+  // The buyer reviews the order there and hits "Ödemeye Geç" to go to /odeme,
+  // which is the only place a checkout session gets created.
+  document.getElementById("checkout-btn").addEventListener("click", () => {
+    const model = document.getElementById("model-label").textContent;
+    window.MarvelasaCart.addItem(state.bundle, state.multiplier, model);
   });
 
   recalc();
