@@ -15,7 +15,11 @@ const path = require('path')
 
 const app = express()
 app.use(express.json())
-
+app.get('/.well-known/apple-developer-merchantid-domain-association', (req, res) => {
+  res.sendFile(
+    path.join(__dirname, 'public', '.well-known', 'apple-developer-merchantid-domain-association')
+  )
+})
 const COMPANY_ID = 'biz_7piuls4sNczwad'
 const PRODUCT_ID = 'prod_pnIOT5MSdvPMC'
 const API_VERSION_DATE = '2026-07-29'
